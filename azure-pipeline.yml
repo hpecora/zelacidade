@@ -1,0 +1,145 @@
+# =====================================================================
+#  ZelaCidade - Azure Pipelines (YAML)
+#  Stage 1 - Build (CI): compila, executa testes JUnit, publica
+#            resultados de teste, cobertura e o artefato (.jar)
+#  Stage 2 - Release (CD): roda automaticamente após o novo artefato,
+#            configura variáveis de ambiente e faz o deploy no App Service
+# =====================================================================
+
+# CI: dispara somente com commits na main (que só recebe código via PR,
+# pois a branch está protegida pelas políticas de branch)
+trigger:
+  branches:
+    include:
+      - main
+
+# Não dispara a pipeline na abertura/atualização de PRs - só após o merge
+pr: none
+
+# ---------------------------------------------------------------------
+# Variáveis de ambiente da pipeline
+#   - Definidas aqui (não sensíveis): ajuste com os nomes do seu RM
+#   - Definidas na tela da pipeline (Edit > Variables):
+#       DB_URL       -> URL JDBC do Azure SQL
+#       DB_USERNAME  -> usuário admin do SQL
+#       DB_PASSWORD  -> senha (marcar "Keep this value secret")
+# ---------------------------------------------------------------------
+variables:
+  azureSubscription: 'sc-zelacidade'            # nome da Service Connection (Project settings > Service connections)
+  webAppName: 'app-zelacidade-rm556612'         # TROCAR pelo nome criado no infra-azure.sh
+  resourceGroup: 'rg-zelacidade-rm556612'       # TROCAR pelo nome criado no infra-azure.sh
+  artifactName: 'zelacidade-app'
+  javaRuntime: 'JAVA|21-java21'
+  MAVEN_OPTS: '-Xmx1024m'
+
+stages:
+  # ===================================================================
+  - stage: Build
+    displayName: 'Build (CI) - compilar, testar e publicar artefato'
+    jobs:
+      - job: Build
+        displayName: 'Maven build + testes'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          - script: |
+              echo "Build $(Build.BuildNumber) - commit $(Build.SourceVersion)"
+              echo "Branch: $(Build.SourceBranchName)"
+              echo "JDK 21 em: $(JAVA_HOME_21_X64)"
+            displayName: 'Informações do build'
+
+          - task: Maven@4
+            displayName: 'Maven - clean package (compila e executa testes JUnit)'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              goals: 'clean package'
+              options: '-B'
+              javaHomeOption: 'Path'
+              jdkDirectory: '$(JAVA_HOME_21_X64)'
+              mavenVersionOption: 'Default'
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              testRunTitle: 'Testes JUnit - ZelaCidade'
+
+          - task: PublishCodeCoverageResults@2
+            displayName: 'Publicar cobertura de código (JaCoCo)'
+            inputs:
+              summaryFileLocation: '$(System.DefaultWorkingDirectory)/target/site/jacoco/jacoco.xml'
+
+          - task: CopyFiles@2
+            displayName: 'Copiar .jar e scripts para o diretório de artefatos'
+            inputs:
+              SourceFolder: '$(System.DefaultWorkingDirectory)'
+              Contents: |
+                target/zelacidade.jar
+                scripts/**
+              TargetFolder: '$(Build.ArtifactStagingDirectory)'
+              flattenFolders: false
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publicar artefato (pacote)'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)'
+              artifact: '$(artifactName)'
+              publishLocation: 'pipeline'
+
+  # ===================================================================
+  - stage: Release
+    displayName: 'Release (CD) - deploy no Azure App Service'
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployWebApp
+        displayName: 'Deploy no App Service'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'zelacidade-producao'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: '$(artifactName)'
+                  displayName: 'Baixar artefato gerado pelo CI'
+
+                - task: AzureAppServiceSettings@1
+                  displayName: 'Configurar variáveis de ambiente no App Service'
+                  inputs:
+                    azureSubscription: '$(azureSubscription)'
+                    appName: '$(webAppName)'
+                    resourceGroupName: '$(resourceGroup)'
+                    appSettings: |
+                      [
+                        { "name": "DB_URL",      "value": "$(DB_URL)",      "slotSetting": false },
+                        { "name": "DB_USERNAME", "value": "$(DB_USERNAME)", "slotSetting": false },
+                        { "name": "DB_PASSWORD", "value": "$(DB_PASSWORD)", "slotSetting": false }
+                      ]
+
+                - task: AzureWebApp@1
+                  displayName: 'Deploy do .jar no Azure Web App (Java 21)'
+                  inputs:
+                    azureSubscription: '$(azureSubscription)'
+                    appType: 'webAppLinux'
+                    appName: '$(webAppName)'
+                    package: '$(Pipeline.Workspace)/$(artifactName)/target/zelacidade.jar'
+                    runtimeStack: '$(javaRuntime)'
+                    startUpCommand: 'java -jar /home/site/wwwroot/app.jar --server.port=80'
+
+                - script: |
+                    URL="https://$(webAppName).azurewebsites.net/"
+                    echo "Aguardando a aplicação subir em $URL"
+                    for i in $(seq 1 30); do
+                      CODE=$(curl -s -o resposta.json -w "%{http_code}" "$URL" || true)
+                      if [ "$CODE" = "200" ]; then
+                        echo "Aplicação no ar (HTTP 200):"
+                        cat resposta.json; echo
+                        exit 0
+                      fi
+                      echo "Tentativa $i: HTTP $CODE - aguardando 10s..."
+                      sleep 10
+                    done
+                    echo "A aplicação não respondeu a tempo"
+                    exit 1
+                  displayName: 'Smoke test - verificar aplicação publicada'

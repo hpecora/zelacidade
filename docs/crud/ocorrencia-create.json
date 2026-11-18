@@ -1,0 +1,10 @@
+{
+  "titulo": "Buraco em frente à escola",
+  "descricao": "Buraco grande que obriga os carros a desviar para a calçada",
+  "endereco": "Rua Domingos de Morais, 1500 - Vila Mariana",
+  "latitude": -23.588400,
+  "longitude": -46.632400,
+  "prioridade": 5,
+  "cidadaoId": 1,
+  "categoriaId": 1
+}
