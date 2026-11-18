@@ -15,8 +15,8 @@ import java.util.Map;
 public class InfoController {
 
     static final String APP = "ZelaCidade";
-        static final String VERSAO = "1.1.0";
-        static final String MENSAGEM = "ZelaCidade 1.1.0 - publicado automaticamente pelo Azure DevOps";
+            static final String VERSAO = "1.2.0";
+            static final String MENSAGEM = "ZelaCidade 1.2.0 - publicado automaticamente pelo Azure DevOps";
 
     @GetMapping("/")
     public Map<String, String> info() {
