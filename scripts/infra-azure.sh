@@ -126,7 +126,7 @@ echo "    Configurando comando de inicialização e logs"
 az webapp config set \
   --name "$WEBAPP_NAME" \
   --resource-group "$RESOURCE_GROUP" \
-  --startup-file "java -jar /home/site/wwwroot/app.jar --server.port=80" \
+  --startup-file "java -jar /home/site/wwwroot/zelacidade.jar --server.port=80" \
   -o none
 
 az webapp log config \
