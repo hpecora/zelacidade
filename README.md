@@ -1,16 +1,16 @@
 # ZelaCidade 🏙️ — Zeladoria colaborativa dos espaços públicos
 
-> **Global Solution 2026/2 · CitizenTech** — DevOps Tools & Cloud Computing (FIAP · 2TDS)
+> **Global Solution 2026/2 · CitizenTech** — DevOps Tools & Cloud Computing (FIAP · TDSR)
 
 **Grupo: ZelaTech**
 
 | Integrante | RM | Turma |
 |---|---|---|
-| Henrique Pecora | RM556612 | 2TDS |
-| Santhiago de Gobbi | RM98420 | 2TDS |
+| Henrique Pecora | RM556612 | TDSR |
+| Santhiago de Gobbi | RM98420 | TDSR |
 
 - **Link da organização no Azure DevOps:** `https://dev.azure.com/MR556612`
-- **Vídeo (YouTube):** `https://youtu.be/<id-do-video>`
+- **Vídeo (YouTube):** https://youtu.be/l4gZk-F-RKk
 - **API publicada:** `https://app-zelacidade-rm556612.azurewebsites.net` · Swagger: `/swagger-ui.html`
 
 ---
